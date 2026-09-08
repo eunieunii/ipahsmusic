@@ -945,35 +945,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
         });
 
         // Default initial 2027 entrance exam events from university chart
-        const defaultExamEvents = [
-            { id: 'ev_1', title: '호원대 원서접수', startDate: '2026-09-07', endDate: '2026-09-11', type: '원서' },
-            { id: 'ev_2', title: '호원대 1단계 실기', startDate: '2026-10-01', endDate: '2026-10-11', type: '실기' },
-            { id: 'ev_3', title: '서경대 원서접수', startDate: '2026-09-07', endDate: '2026-09-11', type: '원서' },
-            { id: 'ev_4', title: '서경대 1단계 실기', startDate: '2026-10-03', endDate: '2026-10-17', type: '실기' },
-            { id: 'ev_5', title: '서경대 2단계 실기', startDate: '2026-10-24', endDate: '2026-10-25', type: '실기' },
-            { id: 'ev_6', title: '동아방송예대 원서접수', startDate: '2026-09-07', endDate: '2026-09-30', type: '원서' },
-            { id: 'ev_7', title: '서울예대 원서접수', startDate: '2026-09-07', endDate: '2026-09-30', type: '원서' },
-            { id: 'ev_8', title: '서울예대 실기고사', startDate: '2026-10-17', endDate: '2026-11-01', type: '실기' },
-            { id: 'ev_9', title: '경희대 원서접수', startDate: '2026-09-07', endDate: '2026-09-11', type: '원서' },
-            { id: 'ev_10', title: '홍익대 원서접수', startDate: '2026-09-07', endDate: '2026-09-11', type: '원서' },
-            { id: 'ev_11', title: '홍익대 1단계 실기', startDate: '2026-10-12', endDate: '2026-10-17', type: '실기' },
-            { id: 'ev_12', title: '홍익대 2단계 실기', startDate: '2026-10-31', endDate: '2026-11-01', type: '실기' },
-            { id: 'ev_13', title: '단국대(천안) 원서접수', startDate: '2026-09-08', endDate: '2026-09-11', type: '원서' },
-            { id: 'ev_14', title: '단국대(천안) 실기고사', startDate: '2026-10-09', endDate: '2026-10-11', type: '실기' },
-            { id: 'ev_15', title: '동덕여대 원서접수', startDate: '2026-09-07', endDate: '2026-09-11', type: '원서' },
-            { id: 'ev_16', title: '성신여대 원서접수', startDate: '2026-09-08', endDate: '2026-09-11', type: '원서' },
-            { id: 'ev_17', title: '명지전문대 원서접수', startDate: '2026-09-07', endDate: '2026-09-30', type: '원서' },
-            { id: 'ev_18', title: '한양여대 원서접수', startDate: '2026-09-07', endDate: '2026-09-30', type: '원서' },
-            { id: 'ev_19', title: '한양여대 실기 시간선택(예약)', startDate: '2026-10-12', endDate: '2026-10-12', type: '신청' },
-            { id: 'ev_20', title: '한양여대 실기고사', startDate: '2026-10-17', endDate: '2026-10-18', type: '실기' },
-            { id: 'ev_21', title: '백석예대 원서접수', startDate: '2026-09-07', endDate: '2026-10-13', type: '원서' },
-            { id: 'ev_22', title: '백석예대 실기 선착순예약', startDate: '2026-10-13', endDate: '2026-10-13', type: '신청' },
-            { id: 'ev_23', title: '백석예대 실기고사', startDate: '2026-10-20', endDate: '2026-10-23', type: '실기' },
-            { id: 'ev_24', title: '백석대 원서접수', startDate: '2026-09-07', endDate: '2026-09-11', type: '원서' },
-            { id: 'ev_25', title: '한양대 ERICA 원서접수', startDate: '2026-09-08', endDate: '2026-09-11', type: '원서' }
-        ];
-
-       let examEvents = defaultExamEvents;
+        let examEvents = [];
 
 // Student Application Tracker Data
 let trackerData = [];
@@ -987,8 +959,10 @@ async function loadSupabaseData() {
     try {
         const { data: eventData, error: eventError } = await supabaseClient
             .from('exam_events').select('*').order('start_date', { ascending: true });
-        if (!eventError && eventData && eventData.length) {
-            examEvents = eventData.map(ev => ({
+        if (eventError) {
+            console.error('대학 일정 불러오기 오류:', eventError);
+        } else {
+            examEvents = (eventData || []).map(ev => ({
                 id: ev.id, title: ev.title, startDate: ev.start_date,
                 endDate: ev.end_date, type: ev.type_val
             }));
@@ -1660,10 +1634,31 @@ reviews.unshift({
                 const result = await supabaseClient.from('exam_events').update({
                     title, start_date: startDate, end_date: endDate, type_val: type
                 }).eq('id', String(editId));
+
                 error = result.error;
+
                 if (!error) {
-                    const idx = examEvents.findIndex(ev => String(ev.id) === String(editId));
-                    if (idx !== -1) examEvents[idx] = { ...examEvents[idx], title, startDate, endDate, type };
+                    const { data: refreshed, error: refreshError } = await supabaseClient
+                        .from('exam_events')
+                        .select('*')
+                        .eq('id', String(editId))
+                        .maybeSingle();
+
+                    if (refreshError) {
+                        error = refreshError;
+                    } else if (!refreshed) {
+                        error = new Error('수정할 일정이 DB에 존재하지 않습니다.');
+                    } else {
+                        const idx = examEvents.findIndex(ev => String(ev.id) === String(editId));
+                        const saved = {
+                            id: refreshed.id,
+                            title: refreshed.title,
+                            startDate: refreshed.start_date,
+                            endDate: refreshed.end_date,
+                            type: refreshed.type_val
+                        };
+                        if (idx !== -1) examEvents[idx] = saved;
+                    }
                 }
             } else {
                 const newEv = { id: 'ev_' + Date.now(), title, startDate, endDate, type };
@@ -2327,4 +2322,3 @@ trackerData.unshift(newItem);
     </script>
 </body>
 </html>
-
