@@ -1464,65 +1464,73 @@ async function initApp() {
 
             const editId = document.getElementById('notice-edit-id').value;
             const title = document.getElementById('notice-title-input').value.trim();
-            const content = document.getElementById('notice-content-input').value.trim();
+            const enteredContent = document.getElementById('notice-content-input').value.trim();
             const isImportant = document.getElementById('notice-important-check').checked;
-            if (!title || !content) return;
 
-            // 공지는 직접 UPDATE/INSERT만 사용합니다.
-            // .select().single()을 사용하면 PostgREST의 "Cannot coerce the result to a single JSON object"
-            // 오류가 발생할 수 있으므로 저장 결과를 단일 JSON으로 강제하지 않습니다.
-            let error = null;
-            let newNotice = null;
-
-            if (editId) {
-                const current = notices.find(n => String(n.id) === String(editId));
-                if (!current) return;
-
-                const result = await supabaseClient.from('notices').update({
-                    title,
-                    content: current.isHTML ? current.content : content,
-                    is_important: isImportant
-                }).eq('id', String(editId));
-
-                error = result.error;
-                if (!error) {
-                    current.title = title;
-                    if (!current.isHTML) current.content = content;
-                    current.isImportant = isImportant;
-                }
-            } else {
-                const newNoticeId = Date.now();
-                const date = new Date().toISOString().split('T')[0];
-
-                const result = await supabaseClient.from('notices').insert([{
-                    id: newNoticeId,
-                    title,
-                    content,
-                    date,
-                    is_important: isImportant,
-                    is_html: false
-                }]);
-
-                error = result.error;
-                if (!error) {
-                    newNotice = {
-                        id: newNoticeId,
-                        title,
-                        content,
-                        date,
-                        isImportant,
-                        isHTML: false
-                    };
-                }
-            }
-
-            if (error) {
-                console.error('공지 저장 오류:', error);
-                showToast('공지 저장에 실패했습니다: ' + (error.message || 'DB 권한을 확인해 주세요.'), 'warning');
+            if (!title || !enteredContent) {
+                showToast('공지 제목과 내용을 입력해 주세요.', 'warning');
                 return;
             }
 
-            if (newNotice) notices.unshift(newNotice);
+            // 공지사항은 관리자 전용 SECURITY DEFINER RPC를 통해 저장합니다.
+            // 브라우저의 직접 INSERT/UPDATE 권한이나 RLS 정책에 영향을 덜 받도록
+            // 생성/수정을 동일한 관리자 함수로 처리합니다.
+            let pId = null;
+            let content = enteredContent;
+            let isHTML = false;
+
+            if (editId) {
+                const current = notices.find(n => String(n.id) === String(editId));
+                if (!current) {
+                    showToast('수정할 공지사항을 찾지 못했습니다.', 'warning');
+                    return;
+                }
+
+                pId = Number(editId);
+                isHTML = !!current.isHTML;
+
+                // 기본 제공 상세 일정표 공지는 HTML 원문을 보존합니다.
+                if (isHTML) content = current.content;
+            }
+
+            const { data, error } = await supabaseClient.rpc('admin_upsert_notice', {
+                p_password: 'ipahs2026',
+                p_id: pId,
+                p_title: title,
+                p_content: content,
+                p_is_important: isImportant,
+                p_is_html: isHTML
+            });
+
+            if (error) {
+                console.error('공지사항 저장 RPC 오류:', error);
+                showToast('공지사항 저장에 실패했습니다: ' + (error.message || error.code || 'DB 오류'), 'warning');
+                return;
+            }
+
+            if (!data) {
+                showToast('공지사항 저장에 실패했습니다. 관리자 인증 또는 DB 함수를 확인해 주세요.', 'warning');
+                return;
+            }
+
+            // RPC 결과를 기준으로 화면 상태도 즉시 동기화합니다.
+            const saved = Array.isArray(data) ? data[0] : data;
+            const mapped = {
+                id: saved.id,
+                title: saved.title,
+                content: saved.content,
+                date: saved.date,
+                isImportant: saved.is_important,
+                isHTML: saved.is_html
+            };
+
+            if (editId) {
+                const idx = notices.findIndex(n => String(n.id) === String(editId));
+                if (idx >= 0) notices[idx] = mapped;
+            } else {
+                notices.unshift(mapped);
+            }
+
             closeNoticeCreateModal();
             renderNotices();
             renderAdminPanel();
