@@ -1954,10 +1954,14 @@ trackerData.unshift(newItem);
 
             const responseId = String(id);
 
-            const { data, error } = await supabaseClient.rpc('admin_delete_application_overview', {
-                p_password: 'ipahs2026',
-                p_id: responseId
-            });
+            // 현재 application_overview 테이블에 DELETE 권한이 열려 있으므로
+            // 관리자 화면에서는 해당 행 하나만 직접 삭제합니다.
+            // RPC schema-cache 문제와 무관하게 동작하도록 처리합니다.
+            const { data: deletedRows, error } = await supabaseClient
+                .from('application_overview')
+                .delete()
+                .eq('id', responseId)
+                .select('id');
 
             if (error) {
                 console.error('전체 현황 삭제 오류:', error);
@@ -1965,8 +1969,8 @@ trackerData.unshift(newItem);
                 return;
             }
 
-            if (data !== true) {
-                showToast('삭제할 지원 현황을 찾지 못했습니다.', 'warning');
+            if (!deletedRows || deletedRows.length === 0) {
+                showToast('삭제할 지원 현황을 찾지 못했습니다. DB의 해당 응답 ID를 확인해 주세요.', 'warning');
                 return;
             }
 
