@@ -1118,6 +1118,8 @@ async function loadSupabaseData() {
             }
         ];
 
+
+
 async function initApp() {
     await loadSupabaseData();
 
@@ -1388,7 +1390,7 @@ async function initApp() {
         }
 
         function openNoticeDetailModal(id) {
-            const notice = notices.find(n => n.id === id);
+            const notice = notices.find(n => String(n.id) === String(id));
             if (!notice) return;
 
             const badge = document.getElementById('notice-modal-badge');
@@ -1411,7 +1413,7 @@ async function initApp() {
             if (actionsContainer) {
                 let editBtn = '';
                 if (isAdminLoggedIn) {
-                    editBtn = `<button onclick="closeNoticeDetailModal(); openNoticeEditModal(${notice.id})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition mr-2"><i class="fa-solid fa-pen mr-1"></i> 공지 수정</button>`;
+                    editBtn = `<button onclick="closeNoticeDetailModal(); openNoticeEditModal(${JSON.stringify(notice.id)})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition mr-2"><i class="fa-solid fa-pen mr-1"></i> 공지 수정</button>`;
                 }
                 actionsContainer.innerHTML = `${editBtn}<button onclick="closeNoticeDetailModal()" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition">닫기</button>`;
             }
@@ -1443,7 +1445,7 @@ async function initApp() {
                 toggleAdminModal();
                 return;
             }
-            const notice = notices.find(n => n.id === id);
+            const notice = notices.find(n => String(n.id) === String(id));
             if (!notice) return;
 
             document.getElementById('notice-form-modal-title').textContent = "입시 공지사항 수정";
@@ -2112,8 +2114,8 @@ trackerData.unshift(newItem);
                             <span class="font-bold text-slate-800">[${n.isImportant ? '중요' : '일반'}] ${n.title}</span>
                         </div>
                         <div class="flex items-center space-x-1">
-                            <button onclick="openNoticeEditModal(${n.id})" class="text-indigo-600 hover:text-indigo-800 font-semibold px-2 py-0.5 rounded border border-indigo-200 hover:bg-indigo-50 text-[11px]">수정</button>
-                            <button onclick="deleteNotice(${n.id})" class="text-rose-500 hover:text-rose-700 font-semibold px-2 py-0.5 rounded border border-rose-200 hover:bg-rose-50 text-[11px]">삭제</button>
+                            <button onclick="openNoticeEditModal(${JSON.stringify(n.id)})" class="text-indigo-600 hover:text-indigo-800 font-semibold px-2 py-0.5 rounded border border-indigo-200 hover:bg-indigo-50 text-[11px]">수정</button>
+                            <button onclick="deleteNotice(${JSON.stringify(n.id)})" class="text-rose-500 hover:text-rose-700 font-semibold px-2 py-0.5 rounded border border-rose-200 hover:bg-rose-50 text-[11px]">삭제</button>
                         </div>
                     `;
                     noticeAdminContainer.appendChild(item);
