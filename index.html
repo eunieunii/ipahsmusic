@@ -557,6 +557,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
                                     <th class="p-3 whitespace-nowrap">이름</th>
                                     <th class="p-3 whitespace-nowrap">전형</th>
                                     <th class="p-3 min-w-[320px]">본인이 쓴 학교</th>
+                                    ${isAdminLoggedIn ? '<th class="p-3 text-center no-print whitespace-nowrap">관리</th>' : ''}
                                 </tr>
                             </thead>
                             <tbody id="overview-table-body" class="divide-y divide-slate-100 text-slate-700"></tbody>
@@ -1920,7 +1921,7 @@ trackerData.unshift(newItem);
             });
             if (count) count.textContent = `(${sorted.length}명 응답)`;
             if (!sorted.length) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-xs text-slate-400">${selectedUniversity === 'ALL' ? '아직 지원 현황 응답이 없습니다. 위에서 본인의 지원 대학을 제출해 주세요.' : `‘${escapeHtml(selectedUniversity)}’을(를) 선택한 응답자가 없습니다.`}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${isAdminLoggedIn ? 6 : 5}" class="p-10 text-center text-xs text-slate-400">${selectedUniversity === 'ALL' ? '아직 지원 현황 응답이 없습니다. 위에서 본인의 지원 대학을 제출해 주세요.' : `‘${escapeHtml(selectedUniversity)}’을(를) 선택한 응답자가 없습니다.`}</td></tr>`;
                 return;
             }
             tbody.innerHTML = sorted.map(item => {
@@ -1931,8 +1932,48 @@ trackerData.unshift(newItem);
                     <td class="p-3 font-bold text-slate-900">${item.name}</td>
                     <td class="p-3"><span class="bg-slate-100 px-2 py-1 rounded font-semibold whitespace-nowrap">${item.type}</span></td>
                     <td class="p-3 leading-6">${badges || '<span class="text-slate-400">선택한 대학 없음</span>'}</td>
+                    ${isAdminLoggedIn ? `<td class="p-3 text-center no-print">
+                        <button onclick="deleteOverviewResponse(${JSON.stringify(item.id)})"
+                            class="text-rose-500 hover:text-rose-700 text-[11px] font-semibold px-2 py-1 rounded border border-rose-200 hover:bg-rose-50">
+                            삭제
+                        </button>
+                    </td>` : ''}
                 </tr>`;
             }).join('');
+        }
+
+        async function deleteOverviewResponse(id) {
+            if (!isAdminLoggedIn) {
+                showToast('교사 관리자 인증이 필요합니다.', 'warning');
+                return;
+            }
+
+            if (!confirm('이 학생의 지원 현황 응답을 삭제할까요?\n삭제 후에는 학생이 다시 제출할 수 있습니다.')) {
+                return;
+            }
+
+            const responseId = String(id);
+
+            const { data, error } = await supabaseClient.rpc('admin_delete_application_overview', {
+                p_password: 'ipahs2026',
+                p_id: responseId
+            });
+
+            if (error) {
+                console.error('전체 현황 삭제 오류:', error);
+                showToast('전체 현황 삭제에 실패했습니다: ' + (error.message || error.code || 'DB 오류'), 'warning');
+                return;
+            }
+
+            if (data !== true) {
+                showToast('삭제할 지원 현황을 찾지 못했습니다.', 'warning');
+                return;
+            }
+
+            overviewDataState = overviewDataState.filter(item => String(item.id) !== responseId);
+            updateOverviewUniversityFilter();
+            renderOverviewTable();
+            showToast('학생 지원 현황 응답이 삭제되었습니다.');
         }
 
         async function handleOverviewSubmit(e) {
@@ -2322,3 +2363,4 @@ trackerData.unshift(newItem);
     </script>
 </body>
 </html>
+
