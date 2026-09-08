@@ -557,7 +557,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
                                     <th class="p-3 whitespace-nowrap">이름</th>
                                     <th class="p-3 whitespace-nowrap">전형</th>
                                     <th class="p-3 min-w-[320px]">본인이 쓴 학교</th>
-                                    ${isAdminLoggedIn ? '<th class="p-3 text-center no-print whitespace-nowrap">관리</th>' : ''}
+                                    <th id="overview-manage-header" class="p-3 text-center no-print whitespace-nowrap">관리</th>
                                 </tr>
                             </thead>
                             <tbody id="overview-table-body" class="divide-y divide-slate-100 text-slate-700"></tbody>
@@ -1910,6 +1910,8 @@ trackerData.unshift(newItem);
             const count = document.getElementById('overview-count');
             if (!tbody) return;
             updateOverviewUniversityFilter();
+            const manageHeader = document.getElementById('overview-manage-header');
+            if (manageHeader) manageHeader.style.display = isAdminLoggedIn ? '' : 'none';
             const selectedUniversity = document.getElementById('overview-univ-filter')?.value || 'ALL';
             const filtered = selectedUniversity === 'ALL'
                 ? [...overviewDataState]
