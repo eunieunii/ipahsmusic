@@ -58,7 +58,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
             </div>
             <h2 class="text-2xl font-black text-slate-900 mb-1">인천대중예술고등학교</h2>
             <p class="text-xs text-indigo-600 font-bold mb-6">실용음악과 5기 입시 관리 시스템</p>
-            
+
             <p class="text-xs text-slate-500 mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed">
                 🔒 본 시스템은 5기 학생 및 교직원 전용 공간입니다.<br>
                 액세스 비밀번호를 입력해 주세요. (외부 유출 금지)
@@ -160,7 +160,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
         </header>
 
         <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-            
+
             <!-- Banner Alert -->
             <div class="mb-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden no-print">
                 <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -178,9 +178,9 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
 
             <!-- SECTION 1: DASHBOARD -->
             <section id="section-dashboard" class="tab-section space-y-6">
-                
+
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    
+
                     <!-- Left Column: Teacher Notice Board -->
                     <div class="lg:col-span-5 flex flex-col">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-indigo-100 h-full flex flex-col">
@@ -300,7 +300,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
             <!-- SECTION 2: PRACTICAL EXAM REVIEWS -->
             <section id="section-reviews" class="tab-section hidden space-y-6">
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    
+
                     <!-- Review Submission Form (Left 5 cols) -->
                     <div class="lg:col-span-5">
                         <div class="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-indigo-100">
@@ -594,7 +594,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
                     </div>
 
                     <div id="admin-unlocked-view" class="hidden space-y-6">
-                        
+
                         <!-- Teacher Excel Sheet Data Export Center -->
                         <div class="p-5 rounded-2xl bg-gradient-to-r from-emerald-900 to-teal-900 text-white shadow-md border border-emerald-700">
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -866,7 +866,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
             </h3>
             <form onsubmit="handleEventSubmit(event)" class="space-y-3 text-xs">
                 <input type="hidden" id="event-edit-id">
-                
+
                 <div>
                     <label class="block font-semibold text-slate-700 mb-1">일정명 (대학 및 내용)</label>
                     <input type="text" id="event-title-input" required placeholder="예: 서울예대 실기고사" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
@@ -911,14 +911,16 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
     <script>
         // Global Application State Initialization
         let currentDate = new Date(); currentDate.setDate(1); // Current month default
-        let isAdminLoggedIn = localStorage.getItem('ipahs_admin_logged_in') === 'true';
+        // 교사 비밀번호는 코드에 적지 않고, 로그인할 때 입력한 값을 이 탭에서만 기억합니다.
+        let adminPassword = sessionStorage.getItem('ipahs_admin_pw') || '';
+        let isAdminLoggedIn = !!adminPassword;
 
         // Site Access Gate Unlock Function (Password: ipahs5)
         function unlockSite(e) {
             e.preventDefault();
             const pass = document.getElementById('site-pass-input').value.trim();
             const errorEl = document.getElementById('gate-error');
-            
+
             if (pass === 'ipahs5') {
                 sessionStorage.setItem('ipahs_gate_unlocked', 'true');
                 document.getElementById('site-gate').classList.add('hidden');
@@ -969,26 +971,7 @@ async function loadSupabaseData() {
             }));
         }
 
-        // 새 Supabase 프로젝트의 실기 후기만 사용합니다.
-        const newReviewResult = await supabaseClient
-            .from('reviews').select('*').order('date', { ascending: false });
-
-        const mapReview = (r) => ({
-            id: r.id, class: r.class_num, number: r.number_num, author: r.author,
-            major: r.major, type: r.type_val, univ: r.univ,
-            content: r.content, approved: r.approved, date: r.date, _source: 'new'
-        });
-
-        reviews = !newReviewResult.error && newReviewResult.data
-            ? newReviewResult.data.map(mapReview) : [];
-
-        if (newReviewResult.error) {
-            console.error('실기 후기 불러오기 오류:', newReviewResult.error);
-            const feed = document.getElementById('reviews-feed');
-            if (feed) {
-                feed.innerHTML = `<div class="py-12 px-4 text-center text-xs text-rose-500 bg-rose-50 border border-rose-100 rounded-xl">실기 후기를 불러오지 못했습니다.<br><span class="text-[11px] text-slate-400">${newReviewResult.error?.message || 'Supabase 오류'}</span></div>`;
-            }
-        }
+        await loadReviews();
 
         const { data: noticeData, error: noticeError } = await supabaseClient
             .from('notices').select('*').order('date', { ascending: false });
@@ -1024,10 +1007,36 @@ async function loadSupabaseData() {
     }
 }
 
+// 학생에게는 후기 내용(content)을 제외한 컬럼만 내려옵니다.
+// 교사는 비밀번호를 확인하는 DB 함수(admin_get_reviews)를 통해서만 내용까지 받아옵니다.
+const REVIEW_PUBLIC_COLUMNS = 'id, class_num, number_num, author, major, type_val, univ, approved, date';
+
+async function loadReviews() {
+    const result = isAdminLoggedIn
+        ? await supabaseClient.rpc('admin_get_reviews', { p_password: adminPassword })
+        : await supabaseClient.from('reviews').select(REVIEW_PUBLIC_COLUMNS).order('date', { ascending: false });
+
+    const mapReview = (r) => ({
+        id: r.id, class: r.class_num, number: r.number_num, author: r.author,
+        major: r.major, type: r.type_val, univ: r.univ,
+        content: r.content || '', approved: r.approved, date: r.date, _source: 'new'
+    });
+
+    reviews = !result.error && result.data ? result.data.map(mapReview) : [];
+
+    if (result.error) {
+        console.error('실기 후기 불러오기 오류:', result.error);
+        const feed = document.getElementById('reviews-feed');
+        if (feed) {
+            feed.innerHTML = `<div class="py-12 px-4 text-center text-xs text-rose-500 bg-rose-50 border border-rose-100 rounded-xl">실기 후기를 불러오지 못했습니다.<br><span class="text-[11px] text-slate-400">${result.error?.message || 'Supabase 오류'}</span></div>`;
+        }
+    }
+}
+
         // Detailed University Schedule Table HTML Notice
         const scheduleTableNoticeHTML = `
             <p class="mb-3 font-semibold text-slate-800"><b>2027학년도 실용음악 수시 일정 한눈에 보기</b> 종합 정리입니다.</p>
-            
+
             <div class="overflow-x-auto my-3 border border-indigo-200 rounded-xl shadow-sm">
                 <table class="w-full text-left border-collapse text-xs">
                     <thead>
@@ -1116,9 +1125,9 @@ async function initApp() {
                 showToast("다운로드할 실기 세부 현황 데이터가 없습니다.", "warning");
                 return;
             }
-            let csvContent = "\uFEFF"; // UTF-8 BOM for Excel Korean support
+            let csvContent = "﻿"; // UTF-8 BOM for Excel Korean support
             csvContent += "학반,번호,이름,전공,입시구분,지원대학교,본인 실기고사일,실기시간,합격상태\n";
-            
+
             trackerData.forEach(item => {
                 let row = [
                     `"${item.class}반"`,
@@ -1146,11 +1155,16 @@ async function initApp() {
         }
 
         function exportReviewsToCSV() {
+            // 실기 후기 내용은 교사만 열람 가능하므로 엑셀 다운로드도 교사 전용입니다.
+            if (!isAdminLoggedIn) {
+                showToast("실기 후기 엑셀 다운로드는 교사 로그인 후 이용 가능합니다.", "warning");
+                return;
+            }
             if (reviews.length === 0) {
                 showToast("다운로드할 실기후기 데이터가 없습니다.", "warning");
                 return;
             }
-            let csvContent = "\uFEFF"; // UTF-8 BOM for Excel Korean support
+            let csvContent = "﻿"; // UTF-8 BOM for Excel Korean support
             csvContent += "학반,번호,이름,전공,입시구분,지원대학교,승인여부,작성일,상세후기내용\n";
 
             reviews.forEach(item => {
@@ -1205,7 +1219,7 @@ async function initApp() {
             // Current Month Days
             for (let day = 1; day <= totalDays; day++) {
                 const dayCell = document.createElement('div');
-                
+
                 const mStr = String(month + 1).padStart(2, '0');
                 const dStr = String(day).padStart(2, '0');
                 const dateStr = `${year}-${mStr}-${dStr}`;
@@ -1226,7 +1240,7 @@ async function initApp() {
                     let badgeClass = 'bg-indigo-600 text-white';
                     if (ev.type === '원서') badgeClass = 'bg-emerald-600 text-white';
                     if (ev.type === '신청') badgeClass = 'bg-amber-600 text-white';
-                    
+
                     univBadgesHTML += `<div class="truncate text-[9px] px-1 py-0.5 rounded ${badgeClass} font-semibold mb-0.5">${ev.title}</div>`;
                 });
 
@@ -1260,7 +1274,7 @@ async function initApp() {
 
         function selectCalendarDay(dateStr) {
             document.getElementById('selected-date-str').textContent = `📅 ${dateStr} 입시 & 실기 일정 명단`;
-            
+
             const univContainer = document.getElementById('selected-date-univ-events');
             const studentContainer = document.getElementById('selected-date-student-events');
 
@@ -1376,7 +1390,7 @@ async function initApp() {
 
             document.getElementById('notice-modal-date').textContent = notice.date;
             document.getElementById('notice-modal-title').textContent = notice.title;
-            
+
             const contentContainer = document.getElementById('notice-modal-content');
             if (notice.isHTML) {
                 contentContainer.innerHTML = notice.content;
@@ -1471,7 +1485,7 @@ async function initApp() {
             }
 
             const { data, error } = await supabaseClient.rpc('admin_upsert_notice', {
-                p_password: 'ipahs2026',
+                p_password: adminPassword,
                 p_id: pId,
                 p_title: title,
                 p_content: content,
@@ -1550,7 +1564,8 @@ async function initApp() {
                 date: new Date().toISOString().split('T')[0]
             };
 
-const { data, error } = await supabaseClient
+// 학생은 후기 내용을 다시 읽어올 권한이 없으므로 저장만 하고 결과는 돌려받지 않습니다.
+const { error } = await supabaseClient
     .from('reviews')
     .insert([{
         id: newReview.id,
@@ -1563,9 +1578,7 @@ const { data, error } = await supabaseClient
         content: newReview.content,
         approved: false,
         date: newReview.date
-    }])
-    .select()
-    .single();
+    }]);
 
 if (error) {
     console.error('후기 저장 오류:', error);
@@ -1574,16 +1587,9 @@ if (error) {
 }
 
 reviews.unshift({
-    id: data.id,
-    class: data.class_num,
-    number: data.number_num,
-    author: data.author,
-    major: data.major,
-    type: data.type_val,
-    univ: data.univ,
-    content: data.content,
-    approved: data.approved,
-    date: data.date
+    ...newReview,
+    class: Number(newReview.class),
+    number: Number(newReview.number)
 });
 
             document.getElementById('review-content').value = '';
@@ -1970,7 +1976,7 @@ trackerData.unshift(newItem);
             buttons.forEach(b => { b.disabled = true; b.textContent = '삭제 중…'; });
 
             const { data, error } = await supabaseClient.rpc('admin_delete_application_overview', {
-                p_password: 'ipahs2026',
+                p_password: adminPassword,
                 p_id: responseId
             });
 
@@ -2125,11 +2131,16 @@ trackerData.unshift(newItem);
             approvedReviews.forEach(r => {
                 const card = document.createElement('div');
                 card.className = "bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2 relative";
-                
+
                 let adminDeleteBtn = '';
                 if (isAdminLoggedIn) {
                     adminDeleteBtn = `<button onclick="rejectReview(${r.id})" class="text-xs text-rose-500 hover:underline font-bold ml-2 no-print">[삭제]</button>`;
                 }
+
+                // 후기 내용은 교사(관리자)에게만 보이고, 그 외에는 작성자 정보만 표시합니다.
+                const contentHTML = isAdminLoggedIn
+                    ? `<p class="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">${r.content}</p>`
+                    : `<p class="text-xs text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-lock"></i> 후기 내용은 비공개입니다. (교사만 열람 가능)</p>`;
 
                 card.innerHTML = `
                     <div class="flex items-center justify-between pb-2 border-b border-slate-200">
@@ -2140,7 +2151,7 @@ trackerData.unshift(newItem);
                         </div>
                         <span class="text-[11px] text-slate-400">${r.class}반 ${r.number}번 ${r.author} ${adminDeleteBtn}</span>
                     </div>
-                    <p class="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">${r.content}</p>
+                    ${contentHTML}
                     <div class="text-[10px] text-slate-400 text-right">작성일: ${r.date}</div>
                 `;
                 feed.appendChild(card);
@@ -2280,7 +2291,7 @@ trackerData.unshift(newItem);
             // 공지 삭제는 DB에 만들어 둔 관리자 전용 RPC를 사용합니다.
             // 테이블의 직접 DELETE 권한이 없어도 SECURITY DEFINER 함수로 삭제할 수 있습니다.
             const { data, error } = await supabaseClient.rpc('admin_delete_notice', {
-                p_password: 'ipahs2026',
+                p_password: adminPassword,
                 p_id: Number(id)
             });
 
@@ -2312,13 +2323,22 @@ trackerData.unshift(newItem);
             });
         }
 
-        function handleAdminLogin(e) {
+        async function handleAdminLogin(e) {
             e.preventDefault();
             const pass = document.getElementById('admin-pass-input').value;
-            // Teacher Password: ipahs2026
-            if (pass === 'ipahs2026') {
+            // 비밀번호는 페이지 코드가 아니라 DB 함수에서 확인합니다.
+            const { data: ok, error } = await supabaseClient.rpc('admin_verify_password', { p_password: pass });
+            if (error) {
+                console.error('교사 인증 오류:', error);
+                showToast("교사 인증 중 오류가 발생했습니다: " + (error.message || error.code || 'DB 오류'), "error");
+                return;
+            }
+            if (ok === true) {
+                adminPassword = pass;
                 isAdminLoggedIn = true;
-                localStorage.setItem('ipahs_admin_logged_in', 'true');
+                sessionStorage.setItem('ipahs_admin_pw', pass);
+                document.getElementById('admin-pass-input').value = '';
+                await loadReviews();
                 document.getElementById('admin-badge').classList.remove('hidden');
                 document.getElementById('admin-logout-btn').classList.remove('hidden');
                 document.getElementById('admin-login-btn').classList.add('hidden');
@@ -2335,7 +2355,11 @@ trackerData.unshift(newItem);
 
         function handleAdminLogout() {
             isAdminLoggedIn = false;
+            adminPassword = '';
+            sessionStorage.removeItem('ipahs_admin_pw');
             localStorage.removeItem('ipahs_admin_logged_in');
+            // 로그아웃하면 화면 메모리에 남은 후기 내용도 지웁니다.
+            reviews.forEach(r => { r.content = ''; });
             document.getElementById('admin-badge').classList.add('hidden');
             document.getElementById('admin-logout-btn').classList.add('hidden');
             document.getElementById('admin-login-btn').classList.remove('hidden');
@@ -2378,14 +2402,14 @@ trackerData.unshift(newItem);
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            
+
             let bg = 'bg-slate-900 text-white';
             if (type === 'error') bg = 'bg-rose-600 text-white';
             if (type === 'warning') bg = 'bg-amber-600 text-white';
 
             toast.className = `px-4 py-2.5 rounded-xl text-xs font-bold shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 flex items-center gap-2 ${bg}`;
             toast.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span>${message}</span>`;
-            
+
             container.appendChild(toast);
 
             setTimeout(() => {
@@ -2400,5 +2424,4 @@ trackerData.unshift(newItem);
     </script>
 </body>
 </html>
-
 
